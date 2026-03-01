@@ -1,62 +1,64 @@
 import time
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+import re
 
 URL = "https://tickets.wiener-staatsoper.at/webshop/webticket/bestseatselect?eventId=11649&upsellNo=0"
 BOT_TOKEN = "8710128594:AAHRu1wQgO0rsYJUVbprXATJNVlVRMM-QBc"
 CHAT_ID = "92745369"
 CHECK_INTERVAL = 120
-IGNORED_CATEGORIES = [9]
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": message})
 
-def get_driver():
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    return driver
-
 def check_tickets():
-    driver = get_driver()
-    try:
-        driver.get(URL)
-        time.sleep(5)
-        page_text = driver.find_element("tag name", "body").text
-        print("Seite geladen, Länge:", len(page_text))
+    session = requests.Session()
+    
+    # Erst Cookies holen
+    session.get("https://tickets.wiener-staatsoper.at", headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "de-AT,de;q=0.9",
+    })
+    
+    # Dann Ticket-Seite laden
+    response = session.get(URL, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "de-AT,de;q=0.9",
+        "Referer": "https://tickets.wiener-staatsoper.at",
+    }, timeout=15)
 
-        import re
-        page_text_filtered = re.sub(
-            r'Kategorie\s*9.*?(?=Kategorie\s*\d|$)', '',
-            page_text, flags=re.DOTALL | re.IGNORECASE
-        )
+    soup = BeautifulSoup(response.text, "html.parser")
+    page_text = soup.get_text()
 
-        sold_out_count = page_text_filtered.lower().count("ausverkauft")
-        total_cats = len(re.findall(r'Kategorie\s*\d', page_text_filtered, re.IGNORECASE))
+    print("Seite geladen, Länge:", len(page_text))
+    print("Vorschau:", page_text[:300])
 
-        print(f"Kategorien gefunden: {total_cats}, Ausverkauft: {sold_out_count}")
-
-        if total_cats > 0 and sold_out_count < total_cats:
-            send_telegram(
-                f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
-                f"Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
-                f"(Kategorie 9 ignoriert)\n"
-                f"👉 {URL}"
-            )
-            return True
-
+    if len(page_text) < 500:
+        print("Seite zu kurz — möglicherweise blockiert")
         return False
 
-    finally:
-        driver.quit()
+    # Kategorie 9 herausfiltern
+    page_text_filtered = re.sub(
+        r'Kategorie\s*9.*?(?=Kategorie\s*\d|$)', '',
+        page_text, flags=re.DOTALL | re.IGNORECASE
+    )
+
+    sold_out_count = page_text_filtered.lower().count("ausverkauft")
+    total_cats = len(re.findall(r'Kategorie\s*\d', page_text_filtered, re.IGNORECASE))
+
+    print(f"Kategorien: {total_cats}, Ausverkauft: {sold_out_count}")
+
+    if total_cats > 0 and sold_out_count < total_cats:
+        send_telegram(
+            f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
+            f"Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
+            f"(Kategorie 9 ignoriert)\n"
+            f"👉 {URL}"
+        )
+        return True
+
+    return False
 
 print("Monitoring gestartet...")
 send_telegram("✅ Monitoring gestartet — Eugen Onegin 24.05.2026 (Kat. 9 ignoriert)")
