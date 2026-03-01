@@ -40,7 +40,7 @@ def check_tickets():
         time.sleep(5)
         page_text = driver.find_element("tag name", "body").text
         print("Seite geladen, Länge:", len(page_text))
-        print("Vorschau:", page_text[:300])
+        print("Vorschau:", page_text[:3000])
 
         page_text_filtered = re.sub(
             r'Kategorie\s*9.*?(?=Kategorie\s*\d|$)', '',
@@ -80,3 +80,4 @@ while True:
     except Exception as e:
         print("Fehler:", e)
         time.sleep(60)
+
