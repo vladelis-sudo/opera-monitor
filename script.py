@@ -1,7 +1,8 @@
 import time
 import requests
-from bs4 import BeautifulSoup
 import re
+import subprocess
+import os
 
 URL = "https://tickets.wiener-staatsoper.at/webshop/webticket/bestseatselect?eventId=11649&upsellNo=0"
 BOT_TOKEN = "8710128594:AAHRu1wQgO0rsYJUVbprXATJNVlVRMM-QBc"
@@ -12,54 +13,61 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": message})
 
+def install_chrome():
+    print("Installiere Chrome...")
+    os.system("apt-get update -q")
+    os.system("apt-get install -y chromium chromium-driver")
+    print("Chrome installiert!")
+
 def check_tickets():
-    session = requests.Session()
-    
-    # Erst Cookies holen
-    session.get("https://tickets.wiener-staatsoper.at", headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "de-AT,de;q=0.9",
-    })
-    
-    # Dann Ticket-Seite laden
-    response = session.get(URL, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "de-AT,de;q=0.9",
-        "Referer": "https://tickets.wiener-staatsoper.at",
-    }, timeout=15)
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    page_text = soup.get_text()
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.binary_location = "/usr/bin/chromium"
 
-    print("Seite geladen, Länge:", len(page_text))
-    print("Vorschau:", page_text[:300])
-
-    if len(page_text) < 500:
-        print("Seite zu kurz — möglicherweise blockiert")
-        return False
-
-    # Kategorie 9 herausfiltern
-    page_text_filtered = re.sub(
-        r'Kategorie\s*9.*?(?=Kategorie\s*\d|$)', '',
-        page_text, flags=re.DOTALL | re.IGNORECASE
+    driver = webdriver.Chrome(
+        service=Service("/usr/bin/chromedriver"),
+        options=options
     )
 
-    sold_out_count = page_text_filtered.lower().count("ausverkauft")
-    total_cats = len(re.findall(r'Kategorie\s*\d', page_text_filtered, re.IGNORECASE))
+    try:
+        driver.get(URL)
+        time.sleep(5)
+        page_text = driver.find_element("tag name", "body").text
+        print("Seite geladen, Länge:", len(page_text))
+        print("Vorschau:", page_text[:300])
 
-    print(f"Kategorien: {total_cats}, Ausverkauft: {sold_out_count}")
-
-    if total_cats > 0 and sold_out_count < total_cats:
-        send_telegram(
-            f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
-            f"Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
-            f"(Kategorie 9 ignoriert)\n"
-            f"👉 {URL}"
+        page_text_filtered = re.sub(
+            r'Kategorie\s*9.*?(?=Kategorie\s*\d|$)', '',
+            page_text, flags=re.DOTALL | re.IGNORECASE
         )
-        return True
 
-    return False
+        sold_out_count = page_text_filtered.lower().count("ausverkauft")
+        total_cats = len(re.findall(r'Kategorie\s*\d', page_text_filtered, re.IGNORECASE))
 
+        print(f"Kategorien: {total_cats}, Ausverkauft: {sold_out_count}")
+
+        if total_cats > 0 and sold_out_count < total_cats:
+            send_telegram(
+                f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
+                f"Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
+                f"(Kategorie 9 ignoriert)\n"
+                f"👉 {URL}"
+            )
+            return True
+
+        return False
+
+    finally:
+        driver.quit()
+
+install_chrome()
 print("Monitoring gestartet...")
 send_telegram("✅ Monitoring gestartet — Eugen Onegin 24.05.2026 (Kat. 9 ignoriert)")
 
@@ -73,3 +81,10 @@ while True:
     except Exception as e:
         print("Fehler:", e)
         time.sleep(60)
+```
+
+Auch `requirements.txt` auf GitHub öffnen und ändern auf:
+```
+requests
+selenium
+beautifulsoup4
