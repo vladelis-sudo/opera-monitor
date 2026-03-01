@@ -1,7 +1,6 @@
 import time
 import requests
 import re
-import subprocess
 import os
 
 URL = "https://tickets.wiener-staatsoper.at/webshop/webticket/bestseatselect?eventId=11649&upsellNo=0"
@@ -81,10 +80,3 @@ while True:
     except Exception as e:
         print("Fehler:", e)
         time.sleep(60)
-```
-
-Auch `requirements.txt` auf GitHub öffnen und ändern auf:
-```
-requests
-selenium
-beautifulsoup4
