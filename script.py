@@ -23,7 +23,7 @@ def check_tickets():
     print("Länge:", len(page_text))
     print("Vorschau:", page_text[:2000])
 
-    if "Restkarten" in page_text or "Tickets verfügbar" in page_text:
+if "Ausverkauft" not in page_text and "ausverkauft" not in page_text and len(page_text) > 2000:
         send_telegram(
             f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
             f"Eugen Onegin 24.05.2026\n"
@@ -46,3 +46,4 @@ while True:
     except Exception as e:
         print("Fehler:", e)
         time.sleep(60)
+
