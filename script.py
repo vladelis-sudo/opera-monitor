@@ -1,9 +1,8 @@
 import time
 import requests
-import re
-import os
+from bs4 import BeautifulSoup
 
-URL = "https://tickets.wiener-staatsoper.at/webshop/webticket/bestseatselect?eventId=11649&upsellNo=0"
+URL = "https://www.wiener-staatsoper.at/kalender/detail/eugen-onegin/2026-05-24/"
 BOT_TOKEN = "8710128594:AAHRu1wQgO0rsYJUVbprXATJNVlVRMM-QBc"
 CHAT_ID = "92745369"
 CHECK_INTERVAL = 120
@@ -12,63 +11,30 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": message})
 
-def install_chrome():
-    print("Installiere Chrome...")
-    os.system("apt-get update -q")
-    os.system("apt-get install -y chromium chromium-driver")
-    print("Chrome installiert!")
-
 def check_tickets():
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "de-AT,de;q=0.9",
+    }
+    response = requests.get(URL, headers=headers, timeout=15)
+    soup = BeautifulSoup(response.text, "html.parser")
+    page_text = soup.get_text()
 
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.binary_location = "/usr/bin/chromium"
+    print("Länge:", len(page_text))
+    print("Vorschau:", page_text[:2000])
 
-    driver = webdriver.Chrome(
-        service=Service("/usr/bin/chromedriver"),
-        options=options
-    )
-
-    try:
-        driver.get(URL)
-        time.sleep(5)
-        page_text = driver.find_element("tag name", "body").text
-        print("Seite geladen, Länge:", len(page_text))
-        print("Vorschau:", page_text[:3000])
-
-        page_text_filtered = re.sub(
-            r'Kategorie\s*9.*?(?=Kategorie\s*\d|$)', '',
-            page_text, flags=re.DOTALL | re.IGNORECASE
+    if "Restkarten" in page_text or "Tickets verfügbar" in page_text:
+        send_telegram(
+            f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
+            f"Eugen Onegin 24.05.2026\n"
+            f"👉 {URL}"
         )
+        return True
 
-        sold_out_count = page_text_filtered.lower().count("ausverkauft")
-        total_cats = len(re.findall(r'Kategorie\s*\d', page_text_filtered, re.IGNORECASE))
+    return False
 
-        print(f"Kategorien: {total_cats}, Ausverkauft: {sold_out_count}")
-
-        if total_cats > 0 and sold_out_count < total_cats:
-            send_telegram(
-                f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
-                f"Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
-                f"(Kategorie 9 ignoriert)\n"
-                f"👉 {URL}"
-            )
-            return True
-
-        return False
-
-    finally:
-        driver.quit()
-
-install_chrome()
 print("Monitoring gestartet...")
-send_telegram("✅ Monitoring gestartet — Eugen Onegin 24.05.2026 (Kat. 9 ignoriert)")
+send_telegram("✅ Monitoring gestartet — Eugen Onegin 24.05.2026")
 
 while True:
     try:
@@ -80,4 +46,3 @@ while True:
     except Exception as e:
         print("Fehler:", e)
         time.sleep(60)
-
