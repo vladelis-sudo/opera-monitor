@@ -20,13 +20,14 @@ def check_tickets():
     soup = BeautifulSoup(response.text, "html.parser")
     page_text = soup.get_text()
 
-    print("Länge:", len(page_text))
+    # Suche nach "TICKETS" Button oder "Restkarten"
+    tickets_button = soup.find(string=lambda t: t and t.strip() == "TICKETS")
+    restkarten = "Restkarten" in page_text
 
-    if len(page_text) < 500:
-        print("Seite zu kurz")
-        return False
+    print("TICKETS Button:", tickets_button is not None)
+    print("Restkarten:", restkarten)
 
-    if "ausverkauft" not in page_text.lower():
+    if tickets_button or restkarten:
         send_telegram(
             "🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
             "Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
@@ -34,7 +35,7 @@ def check_tickets():
         )
         return True
 
-    print("Ausverkauft — keine Tickets")
+    print("Keine Tickets verfügbar")
     return False
 
 print("Monitoring gestartet...")
