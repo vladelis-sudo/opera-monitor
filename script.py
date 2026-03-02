@@ -21,16 +21,20 @@ def check_tickets():
     page_text = soup.get_text()
 
     print("Länge:", len(page_text))
-    print("Vorschau:", page_text[:2000])
 
-if "Ausverkauft" not in page_text and "ausverkauft" not in page_text and len(page_text) > 2000:
+    if len(page_text) < 500:
+        print("Seite zu kurz")
+        return False
+
+    if "ausverkauft" not in page_text.lower():
         send_telegram(
-            f"🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
-            f"Eugen Onegin 24.05.2026\n"
+            "🎭 БИЛЕТЫ ПОЯВИЛИСЬ!\n"
+            "Eugen Onegin 24.05.2026 — Wiener Staatsoper\n"
             f"👉 {URL}"
         )
         return True
 
+    print("Ausverkauft — keine Tickets")
     return False
 
 print("Monitoring gestartet...")
@@ -41,9 +45,8 @@ while True:
         if check_tickets():
             time.sleep(3600)
         else:
-            print(f"Keine Tickets. Nächste Prüfung in {CHECK_INTERVAL}s...")
+            print(f"Nächste Prüfung in {CHECK_INTERVAL}s...")
             time.sleep(CHECK_INTERVAL)
     except Exception as e:
         print("Fehler:", e)
         time.sleep(60)
-
